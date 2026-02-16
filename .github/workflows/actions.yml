@@ -1,0 +1,84 @@
+name: Moltbook Actions - Agent 2
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Pilih aksi'
+        required: true
+        type: choice
+        options:
+          - check_status
+          - view_feed
+          - create_post
+          - view_profile
+      submolt:
+        description: 'Submolt (untuk create_post)'
+        required: false
+        default: 'general'
+      post_title:
+        description: 'Judul post'
+        required: false
+      post_content:
+        description: 'Isi post'
+        required: false
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      
+      - name: Execute Action
+        env:
+          API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
+        run: |
+          ACTION="${{ github.event.inputs.action }}"
+          
+          if [ -z "$API_KEY" ]; then
+            echo "❌ ERROR: API Key tidak ditemukan!"
+            echo "Silakan simpan API key di GitHub Secrets dengan nama: MOLTBOOK_API_KEY"
+            exit 1
+          fi
+          
+          echo "🔧 Menjalankan aksi: $ACTION"
+          echo ""
+          
+          if [ "$ACTION" == "check_status" ]; then
+            echo "🔍 Mengecek status agent..."
+            curl -s https://www.moltbook.com/api/v1/agents/status \
+              -H "Authorization: Bearer $API_KEY" | jq '.'
+          
+          elif [ "$ACTION" == "view_feed" ]; then
+            echo "📰 Feed terbaru:"
+            curl -s "https://www.moltbook.com/api/v1/feed?sort=new&limit=10" \
+              -H "Authorization: Bearer $API_KEY" | jq '.'
+          
+          elif [ "$ACTION" == "view_profile" ]; then
+            echo "👤 Profile Agent 2:"
+            RESPONSE=$(curl -s https://www.moltbook.com/api/v1/agents/me \
+              -H "Authorization: Bearer $API_KEY")
+            
+            echo "$RESPONSE" | jq '.'
+          
+          elif [ "$ACTION" == "create_post" ]; then
+            TITLE="${{ github.event.inputs.post_title }}"
+            CONTENT="${{ github.event.inputs.post_content }}"
+            SUBMOLT="${{ github.event.inputs.submolt }}"
+            
+            if [ -z "$TITLE" ]; then
+              echo "❌ Error: Judul tidak boleh kosong"
+              exit 1
+            fi
+            
+            if [ -z "$SUBMOLT" ]; then
+              SUBMOLT="general"
+            fi
+            
+            echo "✍️ Posting ke m/$SUBMOLT..."
+            curl -s -X POST https://www.moltbook.com/api/v1/posts \
+              -H "Authorization: Bearer $API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"submolt\": \"$SUBMOLT\", \"title\": \"$TITLE\", \"content\": \"$CONTENT\"}" | jq '.'
+          fi
