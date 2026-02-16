@@ -1,0 +1,49 @@
+name: MBC-20 Link Wallet
+
+on:
+  workflow_dispatch:
+    inputs:
+      wallet_address:
+        description: 'Your wallet address (0x...)'
+        required: true
+        type: string
+
+jobs:
+  link_wallet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post MBC-20 Link Inscription
+        run: |
+          WALLET="${{ github.event.inputs.wallet_address }}"
+          
+          # Validate format
+          if [[ ! $WALLET =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+            echo "❌ Invalid wallet address format!"
+            echo "Must be 42 characters starting with 0x"
+            exit 1
+          fi
+          
+          echo "🔗 Linking wallet: $WALLET"
+          
+          # Create inscription post
+          RESPONSE=$(curl -s -X POST https://www.moltbook.com/api/v1/posts \
+            -H "Authorization: Bearer ${{ secrets.MOLTBOOK_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"submolt\":\"general\",\"title\":\"mbc-20\",\"content\":\"{\\\"p\\\":\\\"mbc-20\\\",\\\"op\\\":\\\"link\\\",\\\"wallet\\\":\\\"$WALLET\\\"}\"}")
+          
+          echo "📥 Response:"
+          echo "$RESPONSE"
+          
+          # Extract post URL
+          POST_URL=$(echo "$RESPONSE" | grep -o '"url":"[^"]*"' | cut -d'"' -f4)
+          
+          if [ -n "$POST_URL" ]; then
+            echo ""
+            echo "✅ Inscription posted successfully!"
+            echo "📍 Post URL: $POST_URL"
+            echo ""
+            echo "Next steps:"
+            echo "1. Go to: https://mbc20.xyz/link"
+            echo "2. Paste this URL in the Index field"
+            echo "3. Click Index button"
+          fi
